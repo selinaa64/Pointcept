@@ -38,6 +38,8 @@ class ClsEvaluator(HookBase):
             loss = output_dict["loss"]
             pred = output.max(1)[1]
             label = input_dict["category"]
+            self.trainer.logger.info(f"pred shape: {pred.shape}") 
+            self.trainer.logger.info(f"label shape: {label.shape}") 
             intersection, union, target = intersection_and_union_gpu(
                 pred,
                 label,

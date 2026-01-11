@@ -20,5 +20,6 @@ from .waymo import WaymoDataset
 from .modelnet import ModelNetDataset
 from .shapenet_part import ShapeNetPartDataset
 
+from .lidar import LidarDataset
 # dataloader
 from .dataloader import MultiDatasetDataloader

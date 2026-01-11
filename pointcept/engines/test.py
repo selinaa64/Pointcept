@@ -681,16 +681,23 @@ class ClsTester(TesterBase):
         return collate_fn(batch)
 
 
+
+
+#### TEST
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score
+#####
 @TESTERS.register_module()
 class ClsVotingTester(TesterBase):
     def __init__(
         self,
-        num_repeat=100,
+        num_repeat=1,
         metric="allAcc",
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.num_repeat = num_repeat
+        self.num_repeat = 1
         self.metric = metric
         self.best_idx = 0
         self.best_record = None
@@ -717,22 +724,32 @@ class ClsVotingTester(TesterBase):
         intersection_meter = AverageMeter()
         target_meter = AverageMeter()
         record = {}
+        y_true = []
+        y_pred = []
         self.model.eval()
 
+
+        all_categories=[]
+        all_targets_grouped=[]
+        all_predict_grouped = []    
+        current_row_predictions = [] 
+        current_row_targets=[]
+        count_cat=0
+
+        # alle test bilder einmal durchgehen
         for idx, data_dict in enumerate(self.test_loader):
+            count_cat=count_cat+1
             end = time.time()
             data_dict = data_dict[0]  # current assume batch size is 1
             voting_list = data_dict.pop("voting_list")
             category = data_dict.pop("category")
+
+
+
+            
+            #logger.info(f"all categories {all_categories[idx]}")
             data_name = data_dict.pop("name")
-            # pred = torch.zeros([1, self.cfg.data.num_classes]).cuda()
-            # for i in range(len(voting_list)):
-            #     input_dict = voting_list[i]
-            #     for key in input_dict.keys():
-            #         if isinstance(input_dict[key], torch.Tensor):
-            #             input_dict[key] = input_dict[key].cuda(non_blocking=True)
-            #     with torch.no_grad():
-            #         pred += F.softmax(self.model(input_dict)["cls_logits"], -1)
+          
             input_dict = collate_fn(voting_list)
             for key in input_dict.keys():
                 if isinstance(input_dict[key], torch.Tensor):
@@ -741,10 +758,41 @@ class ClsVotingTester(TesterBase):
                 pred = F.softmax(self.model(input_dict)["cls_logits"], -1).sum(
                     0, keepdim=True
                 )
+               
             pred = pred.max(1)[1].cpu().numpy()
+            y_pred.extend(pred.tolist())
+            y_true.extend([category.item()])
+            all_categories.append(category.item())
+
+
+            if all_categories[idx-1]!=all_categories[idx]: 
+                logger.info(f"all categories momentan: {all_categories[idx]}")
+                logger.info(f"anzahl pro cat: {count_cat}")
+
+                all_targets_grouped.append(current_row_targets)
+                logger.info(f"targets grouped momentaner Index: {all_targets_grouped}")
+                current_row_targets=[]
+
+                all_predict_grouped.append(current_row_predictions)
+                logger.info(f"predictions grouped momentaner Index: {all_predict_grouped}")
+                current_row_predictions = [] 
+                count_cat=0
+            
+            
+            current_row_predictions.append(int(pred[0]))
+            current_row_targets.append(all_categories[idx])
+            #logger.info(f"current_row_predictions : {current_row_predictions}") 
+            #logger.info(f"current_row_targets : {current_row_targets}")
+
             intersection, union, target = intersection_and_union(
                 pred, category, self.cfg.data.num_classes, self.cfg.data.ignore_index
             )
+
+
+            #logger.info(f"target : {target}")  #zb [0 0 0 1 0 ...]
+            #logger.info(f"target shape: {target.shape}")  #(40,)
+
+
             intersection_meter.update(intersection)
             target_meter.update(target)
             record[data_name] = dict(intersection=intersection, target=target)
@@ -763,10 +811,37 @@ class ClsVotingTester(TesterBase):
                     m_acc=m_acc,
                 )
             )
-
+     
+       # logger.info(f"iall_targets.shape: {all_targets.shape}")  # torch.Size([76022, 6])
+        # if current_row_predictions:
+        #     all_predict_grouped.append(current_row_predictions)
+        # if current_row_targets:
+        #     all_targets_grouped.append(current_row_targets)
+        all_predict_grouped = np.array(all_predict_grouped, dtype=object)
+        all_targets_grouped= np.array(all_targets_grouped, dtype=object)
+        logger.info(f"all_predict_grouped ersten zwei : {all_predict_grouped}")
+        logger.info(f"all_targets_grouped  ersten zwei : {all_targets_grouped}")
+        logger.info(f"all_predict_grouped am Ende: {all_predict_grouped.shape}")
+        logger.info(f"all_targets_grouped am Ende: {all_targets_grouped.shape}")
         logger.info("Syncing ...")
         comm.synchronize()
         record_sync = comm.gather(record, dst=0)
+        # Listen von Listen zu flachen Listen machen
+        flat_preds = [item for sublist in all_predict_grouped for item in sublist]
+        flat_targets = [item for sublist in all_targets_grouped for item in sublist]
+
+        # Confusion Matrix berechnen
+        cm = confusion_matrix(flat_targets, flat_preds)
+
+
+
+
+                
+        fig, ax = plt.subplots(figsize=(12, 12))  # größer machen
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(40))
+        disp.plot(cmap='viridis', ax=ax, xticks_rotation=90)
+        plt.tight_layout()
+        plt.savefig("confusion_matrix_large.png", dpi=300)  # hohe Auflösung
 
         if comm.is_main_process():
             record = {}
@@ -791,6 +866,8 @@ class ClsVotingTester(TesterBase):
                         accuracy=accuracy_class[i],
                     )
                 )
+            f1 = f1_score(y_true, y_pred, average="macro")  # oder "micro" oder "weighted" je nach Fokus
+            logger.info("F1-Score (macro): {:.4f}".format(f1))
             return dict(mAcc=mAcc, allAcc=allAcc)
 
     @staticmethod
