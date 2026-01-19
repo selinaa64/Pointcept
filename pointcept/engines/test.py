@@ -838,7 +838,8 @@ class ClsVotingTester(TesterBase):
 
                 
         fig, ax = plt.subplots(figsize=(12, 12))  # größer machen
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(40))
+        num_labels = cm.shape[0] if cm.shape[0] == cm.shape[1] else max(cm.shape)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(num_labels))
         disp.plot(cmap='viridis', ax=ax, xticks_rotation=90)
         plt.tight_layout()
         plt.savefig("confusion_matrix_large.png", dpi=300)  # hohe Auflösung

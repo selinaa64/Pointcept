@@ -13,7 +13,10 @@
 
 module load devel/miniforge
 
+
+
+
 conda activate pointcept-torch2.5.0-cu12.4
 # export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}
 
-sh scripts/train.sh -p python -d modelnet40 -c cls-ptv3-v1m1-0-base -n cls-ptv3-v1m1-0-base
+sh scripts/train.sh -p python -d lidar -c lidar -n lidar
