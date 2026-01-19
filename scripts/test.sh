@@ -5,7 +5,7 @@ PYTHON=python
 
 TEST_CODE=test.py
 
-DATASET=scannet
+DATASET=lidar
 CONFIG="None"
 EXP_NAME=debug
 WEIGHT=model_best

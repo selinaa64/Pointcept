@@ -194,4 +194,5 @@ hooks = [
 ]
 
 # tester
-test = dict(type="ClsVotingTester", num_repeat=100)
+test = dict(type="ClsVotingTester", num_repeat=1)
+#test = dict(type="ClsTester")
